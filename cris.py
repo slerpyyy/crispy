@@ -118,7 +118,7 @@ for key in keys:
 
 	# stop compession loop if gain is too low
 	if best_score < 3:
-		if verbose: print("\nCompression loop break: Gain too low!")
+		if verbose: print("\nCompression loop break: Gain too low!\n")
 		break
 
 	# replace substring with key
@@ -130,7 +130,7 @@ for key in keys:
 
 else:
 	# log out of placeholders loop break
-	if verbose: print("\nCompression loop break: Out of placeholders!")
+	if verbose: print("\nCompression loop break: Out of placeholders!\n")
 
 
 # escape code
@@ -139,13 +139,13 @@ code = code.translate(str.maketrans(escape))
 
 
 # pack code into decoder
-decoder = "s=\"{}\"\nfor i in\"{}\":s=s.split(i);s=s.pop().join(s)\nexec(s)"
+decoder = "c=\"{}\"\nfor i in\"{}\":c=c.split(i);c=c.pop().join(c)\nexec(c)"
 output = decoder.format(code, keys_used)
 
 
 # output file size
 if verbose:
-	print("\nInitial code size: {} bytes".format(init_size))
+	print("Initial code size: {} bytes".format(init_size))
 	print("Escaped code size: {} bytes".format(len(code)))
 	print("Decompressor size: {} bytes".format(len(output)-len(code)))
 	print("Final script size: {} bytes".format(len(output)))
