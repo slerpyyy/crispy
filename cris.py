@@ -22,7 +22,6 @@ if verbose: print("\nReading code from \"{}\"... ".format(in_file_name), end="")
 
 code = ""
 with open(in_file_name) as file:
-	#code = file.read()
 	
 	last_lineno = -1
 	last_col = 0
@@ -48,6 +47,11 @@ with open(in_file_name) as file:
 if verbose: print("Done!")
 
 
+# print initial code size
+init_size = len(code)
+if verbose: print("\nInitial code size: {} bytes".format(init_size))
+
+
 # generate all substrings of a given string
 # ignoring the empty and whole string
 def generateSub(a):
@@ -65,7 +69,9 @@ def scoreSub(a, b):
 
 
 # create list of valid keys for substring replacement
-keys  = "abcdefghijklmnopqrstuvwxyz"
+keys  = "0123456789"
+keys += "^~#!$%&}])<|{[(>`*.,_-+:;/=?@"
+keys += "abcdefghijklmnopqrstuvwxyz"
 keys += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 for char in code: keys = keys.replace(char, "")
 
@@ -87,9 +93,21 @@ for key in keys:
 
 	# iterate over all substrings
 	# and find the best one
-	best_score, best_sub = 0, ""
+	best_sub = ""
+	best_score = 0
+	counter = 0
+	size = len(code)
+	iterations = size * (size + 1) // 2 - 1
+
+	# print total number of iterations
+	if verbose: print(" * {} substrings to search".format(iterations))
+
 	for sub in generateSub(code):
 		score = scoreSub(code, sub)
+		counter += 1
+
+		if verbose and (size > 2048) and (counter % (iterations // 32) == 0):
+			print(" * {:3d}% completed".format(round(100 * counter // iterations, 2)))
 
 		if score > best_score:
 			best_sub = sub
@@ -127,9 +145,10 @@ output = decoder.format(code, keys_used)
 
 # output file size
 if verbose:
-	print("\nEscaped code size: {} bytes".format(len(code)))
+	print("\nInitial code size: {} bytes".format(init_size))
+	print("Escaped code size: {} bytes".format(len(code)))
 	print("Decompressor size: {} bytes".format(len(output)-len(code)))
-	print("Final program size: {} bytes".format(len(output)))
+	print("Final script size: {} bytes".format(len(output)))
 
 
 # output to file
