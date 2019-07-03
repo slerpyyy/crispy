@@ -1,10 +1,27 @@
+import argparse
 import token, tokenize
 import random
 
 
+# args parsing
+parser = argparse.ArgumentParser(description="A simple Python script minifier.")
+
+parser.add_argument("infile", help="specifies the input file")
+parser.add_argument("outfile", help="specifies the output file")
+parser.add_argument("-v", "--verbose", action='store_true', help="enables verbose output")
+
+args = vars(parser.parse_args())
+
+in_file_name = args["infile"]
+out_file_name = args["outfile"]
+verbose = args["verbose"]
+
+
 # read in code to compress
+if verbose: print("\nReading code from \"{}\"... ".format(in_file_name), end="")
+
 code = ""
-with open("test.py") as file:
+with open(in_file_name) as file:
 	#code = file.read()
 	
 	last_lineno = -1
@@ -27,6 +44,8 @@ with open("test.py") as file:
 
 		# write code to buffer
 		code += toktext
+
+if verbose: print("Done!")
 
 
 # generate all substrings of a given string
@@ -53,7 +72,10 @@ for char in code: keys = keys.replace(char, "")
 keys = list(keys)
 random.shuffle(keys)
 keys = "".join(keys)
-print(keys)
+
+
+# print found keys
+if verbose: print("\nValid placeholders found: {}".format(keys))
 
 
 # compression loop
@@ -61,7 +83,7 @@ keys_used = ""
 for key in keys:
 
 	# print result every iteration
-	print("Code length:", len(code))
+	if verbose: print("\nCurrent code length: {} bytes".format(len(code)))
 
 	# iterate over all substrings
 	# and find the best one
@@ -72,16 +94,25 @@ for key in keys:
 		if score > best_score:
 			best_sub = sub
 			best_score = score
-			print(" > [{}] : {}".format(sub.replace("\n", "."), score))
+
+			# log best substring
+			if verbose: print(" > substring found \"{}\" : {}".format(sub.replace("\n", "."), score))
 
 	# stop compession loop if gain is too low
-	if best_score < 3: break
+	if best_score < 3:
+		if verbose: print("\nCompression loop break: Gain too low!")
+		break
 
 	# replace substring with key
 	parts = list(code.split(best_sub))
 	parts.append(best_sub)
 	code = key.join(parts)
 	keys_used = key + keys_used
+
+
+else:
+	# log out of placeholders loop break
+	if verbose: print("\nCompression loop break: Out of placeholders!")
 
 
 # escape code
@@ -94,6 +125,17 @@ decoder = "s=\"{}\"\nfor i in\"{}\":s=s.split(i);s=s.pop().join(s)\nexec(s)"
 output = decoder.format(code, keys_used)
 
 
+# output file size
+if verbose:
+	print("\nEscaped code size: {} bytes".format(len(code)))
+	print("Decompressor size: {} bytes".format(len(output)-len(code)))
+	print("Final program size: {} bytes".format(len(output)))
+
+
 # output to file
-with open("test-crunched.py", "w") as file:
+if verbose: print("\nSaving compressed script to \"{}\"... ".format(out_file_name), end="")
+
+with open(out_file_name, "w") as file:
 	file.write(output)
+
+if verbose: print("Done!\n\n")
