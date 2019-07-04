@@ -4,19 +4,18 @@ import random
 
 
 # args parsing
-parser = argparse.ArgumentParser(description="A simple Python script minifier.")
+parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
 
-infile_default = ".crispy.out"
-parser.add_argument("infile", help="specify the input file")
-parser.add_argument("-o", "--outfile", default=infile_default, help="specify the output file (the default is \"{}\")".format(infile_default))
+infile_default = ".crispy.output.py"
+parser.add_argument("i", metavar="infile", help="specify the input file")
+parser.add_argument("-o", metavar="outfile", default=infile_default, help="specify the output file")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
-parser.add_argument("-p", "--progress", action='store_true', help="add periodic progress updates to verbose output (recommendet for large payloads)")
-
+parser.add_argument("-p", "--progress", action='store_true', help="add periodic progress updates to verbose output\n(recommended for large payloads)")
 
 # write args to vars
 args = vars(parser.parse_args())
-in_file_name = args["infile"]
-out_file_name = args["outfile"]
+in_file_name = args["i"]
+out_file_name = args["o"]
 verbose = args["verbose"]
 progress = args["progress"]
 
@@ -102,10 +101,9 @@ def generate_placeholders(invalid):
 
 
 # generate all substrings of a given string
-# with given minimum length and ignoring the whole string
-def generate_substrings(a, minlen=2):
-	minlen = min(minlen, len(a))
-	for size in range(minlen, len(a)):
+# ignoring the empty and whole string
+def generate_substrings(a):
+	for size in range(1, len(a)):
 		for start in range(len(a)-size+1):
 			end = start + size
 			yield a[start:end]

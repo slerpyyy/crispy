@@ -1,5 +1,5 @@
 # crispy
-a small and simple Python script packer made for sizecoding challenges
+a small and simple Python script packer made for size-coding challenges
 
 ## Usage
 ```
@@ -20,7 +20,9 @@ optional arguments:
 
 ## Example
 
-In the following example, we want to compress the file "input.py" and store the result in "output.py". We are going to use the following command:
+In the following example, we want to compress the file "input.py" and store the result in "output.py". 
+
+We are going to use the following command:
 ```
 python cris.py input.py -o output.py -v
 ```
@@ -37,7 +39,7 @@ for i in"~":c=c.split(i);c=c.pop().join(c)
 exec(c)
 ```
 
-Note, that the packer ended up increasing the size of the script, as the input file given in this example was already very small. Because the packer comes with some overhead, it is only effective really effective, when compressing files in the range of a few kilobytes.
+*Note*: That the packer ended up increasing the size of the script, as the input file given in this example was already very small. Because the packer comes with some overhead, it is only effective really effective, when compressing files in the range of a few kilobytes.
 
 ## Extra Credit
 
