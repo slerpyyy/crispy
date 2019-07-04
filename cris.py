@@ -20,9 +20,11 @@ verbose = args["verbose"]
 progress = args["progress"]
 
 
+
+
+
 # define ParsingError
 class ParsingError(Exception): pass
-
 
 # method for reading python source code
 def read_python_code(filename):
@@ -54,7 +56,6 @@ def read_python_code(filename):
 	# return the read source code
 	return source_code
 
-
 # methode to read in code to compress
 def read_payload_from_file(filename):
 	output = ""
@@ -74,9 +75,15 @@ def read_payload_from_file(filename):
 	# read file without python script optimisation
 	except ParsingError:
 		with open(filename, "r") as file: output = file.read()
-		if verbose: print("Done!\n\nWarning: Failed to parse input file as python code.\nContinuing without Python script optimisation.")
+		if verbose:
+			print("Done!\n")
+			print("Warning: Failed to parse input file as python code.")
+			print("Continuing without Python script optimisation.")
 
 	return output
+
+
+
 
 
 # create string of valid placeholders
@@ -100,6 +107,9 @@ def generate_placeholders(invalid):
 	return res
 
 
+
+
+
 # generate all substrings of a given string
 # ignoring the empty and whole string
 def generate_substrings(a):
@@ -108,13 +118,11 @@ def generate_substrings(a):
 			end = start + size
 			yield a[start:end]
 
-
 # score substring for use in zip compression
 def score_substring(a, b):
 	size = len(b)
 	count = len(a.split(b))-1
 	return max(size-1, 0) * max(count-1, 0)
-
 
 # iterate over all substrings and find the best one
 def find_best_substring(string):
@@ -148,16 +156,46 @@ def find_best_substring(string):
 	return best_sub, best_score
 
 
+
+
+
+# method for escaping special characters in strings
+def escape_string(string):
+	table = {"\\":"\\\\", "\n":"\\n", "\t":"\\t", "\r":"\\r", "\"":"\\\"", "\'":"\\\'"}
+	return string.translate(str.maketrans(table))
+
+# paste payload into decoder
+def pack_payload(payload, placeholders):
+	decoder = "c=\"{}\"\nfor i in\"{}\":c=c.split(i);c=c.pop().join(c)\nexec(c)"
+	return decoder.format(payload, placeholders)
+
+def write_to_file(filename, content):
+	if verbose: print("\nSaving compressed script to \"{}\"... ".format(filename), end="")
+
+	try:
+		with open(filename, "w") as file:
+			file.write(content)
+	
+	except:
+		if verbose: print("ERROR!")
+		print("\nError: Failed to write to outfile\n\n")
+		exit(-1)
+
+	if verbose: print("Done!\n\n")
+
+
+
+
+
+# The main function
 def main():
 
 	# read in payload
 	payload = read_payload_from_file(in_file_name)
 
-
 	# print initial code size
 	init_size = len(payload)
 	if verbose: print("\nInitial code size: {} bytes".format(init_size))
-
 
 	# generate and print keys
 	keys = generate_placeholders(set(payload))
@@ -166,6 +204,7 @@ def main():
 
 	# compression loop
 	keys_used = ""
+	break_msg = "Out of placeholders!"
 	for key in keys:
 
 		# print result every iteration
@@ -176,7 +215,7 @@ def main():
 
 		# stop compession loop if gain is too low
 		if score < 3:
-			if verbose: print("\nCompression loop break: Gain too low!\n")
+			break_msg = "Gain too low!"
 			break
 
 		# replace substring with key
@@ -187,21 +226,13 @@ def main():
 		# update list of used keys
 		keys_used = key + keys_used
 
-
-	else:
-		# log out of placeholders loop break
-		if verbose: print("\nCompression loop break: Out of placeholders!\n")
-
-
-	# escape payload
-	escape = {"\\":"\\\\", "\n":"\\n", "\t":"\\t", "\r":"\\r", "\"":"\\\"", "\'":"\\\'"}
-	payload = payload.translate(str.maketrans(escape))
+	# log out of placeholders loop break
+	if verbose: print("\nCompression loop break: {}\n".format(break_msg))
 
 
 	# pack payload into decoder
-	decoder = "c=\"{}\"\nfor i in\"{}\":c=c.split(i);c=c.pop().join(c)\nexec(c)"
-	output = decoder.format(payload, keys_used)
-
+	payload = escape_string(payload)
+	output = pack_payload(payload, keys_used)
 
 	# output file size
 	if verbose:
@@ -212,20 +243,11 @@ def main():
 		print("Decompressor size: {} bytes".format(out_size-code_size))
 		print("Final script size: {} bytes".format(out_size))
 
-
 	# output to file
-	if verbose: print("\nSaving compressed script to \"{}\"... ".format(out_file_name), end="")
+	write_to_file(out_file_name, output)
 
-	try:
-		with open(out_file_name, "w") as file:
-			file.write(output)
-	
-	except:
-		if verbose: print("ERROR!")
-		print("\nError: Failed to write to outfile\n\n")
-		exit(-1)
 
-	if verbose: print("Done!\n\n")
+
 
 
 # handle keyboard interrupt
