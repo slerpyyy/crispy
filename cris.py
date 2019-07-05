@@ -5,16 +5,16 @@ import random
 # args parsing
 parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
 
-infile_default = ".crispy.output.py"
+in_filename_default = ".crispy.output.py"
 parser.add_argument("i", metavar="infile", help="specify the input file")
-parser.add_argument("-o", metavar="outfile", default=infile_default, help="specify the output file")
+parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
 parser.add_argument("-p", "--progress", action='store_true', help="add periodic progress updates to verbose output\n(recommended for large payloads)")
 
-# write args to vars
+# write args to global vars
 args = vars(parser.parse_args())
-in_file_name = args["i"]
-out_file_name = args["o"]
+in_filename = args["i"]
+out_filename = args["o"]
 verbose = args["verbose"]
 progress = args["progress"]
 
@@ -207,8 +207,7 @@ def pack_payload(payload, placeholders):
 	decoder = "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\nexec(c)"
 	
 	# pack payload into decoder
-	decoder.format(payload, placeholders)
-	return decoder
+	return decoder.format(payload, placeholders)
 
 
 # export encoder
@@ -234,7 +233,7 @@ def write_to_file(filename, content):
 def main():
 
 	# read in payload
-	payload = read_payload_from_file(in_file_name)
+	payload = read_payload_from_file(in_filename)
 
 	# print initial code size
 	init_size = len(payload)
@@ -253,18 +252,18 @@ def main():
 
 	# output file size
 	if verbose:
-		code_size = len(payload)
+		payload_size = len(payload)
 		escaped_size = len(escaped)
 		out_size = len(output)
 		print("Initial code: {} bytes".format(init_size))
-		print("Payload code: {} bytes".format(code_size))
+		print("Payload code: {} bytes".format(payload_size))
 		print("Escaped code: {} bytes".format(escaped_size))
 		print("Decompressor: {} bytes".format(out_size-escaped_size))
 		print("Final script: {} bytes".format(out_size))
 		print("\nTotal Gain: {} bytes".format(init_size-out_size))
 
 	# output to file
-	write_to_file(out_file_name, output)
+	write_to_file(out_filename, output)
 
 
 
