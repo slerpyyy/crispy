@@ -2,7 +2,6 @@ import argparse
 import tokenize
 import random
 
-
 # args parsing
 parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
 
@@ -25,6 +24,7 @@ progress = args["progress"]
 
 # define ParsingError
 class ParsingError(Exception): pass
+
 
 # method for reading python source code
 def read_python_code(filename):
@@ -55,6 +55,7 @@ def read_python_code(filename):
 
 	# return the read source code
 	return source_code
+
 
 # methode to read in code to compress
 def read_payload_from_file(filename):
@@ -90,10 +91,7 @@ def read_payload_from_file(filename):
 def generate_placeholders(invalid):
 
 	# alphabet of placeholders
-	res  = "0123456789"
-	res += "^~#!$%&}])<|{[(>`*.,_-+:;/=?@"
-	res += "abcdefghijklmnopqrstuvwxyz"
-	res += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	res = "!#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 	
 	# remove invalid characters
 	for char in invalid:
@@ -110,35 +108,45 @@ def generate_placeholders(invalid):
 
 
 
-# generate all substrings of a given string
-# ignoring the empty and whole string
-def generate_substrings(a):
-	for size in range(1, len(a)):
-		for start in range(len(a)-size+1):
-			end = start + size
-			yield a[start:end]
+# generate substrings suitable for compression
+def generate_substrings(a, count_only=False):
+	minlen = min(len(a), 2)
+	maxlen = len(a) // 2
+
+	for size in range(minlen, maxlen):
+		loops = len(a) - size + 1
+
+		if not count_only:
+			for start in range(loops):
+				end = start + size
+				yield a[start:end]
+
+		else: yield loops
+
 
 # score substring for use in zip compression
 def score_substring(a, b):
 	size = len(b)
 	count = len(a.split(b))-1
+
+	# compute gain of substring
 	return max(size-1, 0) * max(count-1, 0)
 
-# iterate over all substrings and find the best one
-def find_best_substring(string):
 
-	# setup vars
+# iterate over all substrings and find the best one
+def find_best_substring(a):
 	best_sub = ""
 	best_score = 0
+	
+	size = len(a)
+	iterations = sum(generate_substrings(a, count_only=True))
 	counter = 0
-	size = len(string)
-	iterations = size * (size + 1) // 2 - 1
 
 	# print total number of iterations
 	if verbose: print(" * {} substrings to search".format(iterations))
 
-	for sub in generate_substrings(string):
-		score = score_substring(string, sub)
+	for sub in generate_substrings(a):
+		score = score_substring(a, sub)
 		counter += 1
 
 		# periodic status updates
@@ -150,25 +158,60 @@ def find_best_substring(string):
 			best_score = score
 
 			# log best substring
-			if verbose: print(" > substring found \"{}\" : {}".format(sub.replace("\n", "."), score))
+			if verbose:
+				print(" > substring found {} : {}".format(repr(sub), score))
 
 	# return substring
 	return best_sub, best_score
 
 
+# compression loop
+def compress_payload(payload, placeholders):
+	keys_used = ""
+	break_msg = "Out of placeholders!"
+
+	for key in placeholders:
+
+		# print result every iteration
+		if verbose: print("\nCurrent code length: {} bytes".format(len(payload)))
+
+		# find substring for compression
+		sub, score = find_best_substring(payload)
+
+		# stop compession loop if gain is too low
+		if score < 3:
+			break_msg = "Gain too low!"
+			break
+
+		# replace substring with key
+		parts = list(payload.split(sub))
+		parts.append(sub)
+		payload = key.join(parts)
+
+		# update list of used keys
+		keys_used = key + keys_used
+
+	# log out of placeholders loop break
+	if verbose: print("\nCompression loop break: {}\n".format(break_msg))
+
+	return payload, keys_used
 
 
 
-# method for escaping special characters in strings
-def escape_string(string):
-	table = {"\\":"\\\\", "\n":"\\n", "\t":"\\t", "\r":"\\r", "\"":"\\\"", "\'":"\\\'"}
-	return string.translate(str.maketrans(table))
+
 
 # paste payload into decoder
 def pack_payload(payload, placeholders):
-	decoder = "c=\"{}\"\nfor i in\"{}\":c=c.split(i);c=c.pop().join(c)\nexec(c)"
-	return decoder.format(payload, placeholders)
 
+	# raw decoder code
+	decoder = "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\nexec(c)"
+	
+	# pack payload into decoder
+	decoder.format(payload, placeholders)
+	return decoder
+
+
+# export encoder
 def write_to_file(filename, content):
 	if verbose: print("\nSaving compressed script to \"{}\"... ".format(filename), end="")
 
@@ -201,47 +244,24 @@ def main():
 	keys = generate_placeholders(set(payload))
 	if verbose: print("\n{} valid placeholders found: {}".format(len(keys), keys))
 
-
-	# compression loop
-	keys_used = ""
-	break_msg = "Out of placeholders!"
-	for key in keys:
-
-		# print result every iteration
-		if verbose: print("\nCurrent code length: {} bytes".format(len(payload)))
-
-		# find substring for compression
-		sub, score = find_best_substring(payload)
-
-		# stop compession loop if gain is too low
-		if score < 3:
-			break_msg = "Gain too low!"
-			break
-
-		# replace substring with key
-		parts = list(payload.split(sub))
-		parts.append(sub)
-		payload = key.join(parts)
-
-		# update list of used keys
-		keys_used = key + keys_used
-
-	# log out of placeholders loop break
-	if verbose: print("\nCompression loop break: {}\n".format(break_msg))
-
+	# compress payload
+	payload, keys = compress_payload(payload, keys)
 
 	# pack payload into decoder
-	payload = escape_string(payload)
-	output = pack_payload(payload, keys_used)
+	escaped = repr(payload)
+	output = pack_payload(escaped, repr(keys))
 
 	# output file size
 	if verbose:
 		code_size = len(payload)
+		escaped_size = len(escaped)
 		out_size = len(output)
-		print("Initial code size: {} bytes".format(init_size))
-		print("Escaped code size: {} bytes".format(code_size))
-		print("Decompressor size: {} bytes".format(out_size-code_size))
-		print("Final script size: {} bytes".format(out_size))
+		print("Initial code: {} bytes".format(init_size))
+		print("Payload code: {} bytes".format(code_size))
+		print("Escaped code: {} bytes".format(escaped_size))
+		print("Decompressor: {} bytes".format(out_size-escaped_size))
+		print("Final script: {} bytes".format(out_size))
+		print("\nTotal Gain: {} bytes".format(init_size-out_size))
 
 	# output to file
 	write_to_file(out_file_name, output)
