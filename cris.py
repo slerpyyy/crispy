@@ -121,7 +121,8 @@ def generate_substrings(a, count_only=False):
 		if not count_only:
 			for start in range(loops):
 				end = start + size
-				yield a[start:end]
+				sub = a[start:end]
+				yield sub
 
 		else: yield loops
 
@@ -139,6 +140,7 @@ def score_substring(a, b):
 
 # iterate over all substrings and find the best one
 def find_best_substring(a):
+	global verbose, progress
 	best_sub = ""
 	best_score = 0
 	
@@ -171,6 +173,7 @@ def find_best_substring(a):
 
 # compression loop
 def compress_payload(payload, placeholders):
+	global verbose
 	keys_used = ""
 	break_msg = "Out of placeholders!"
 
@@ -218,6 +221,8 @@ def pack_payload(payload, placeholders):
 
 # export encoder
 def write_to_file(filename, content):
+	global verbose
+
 	if verbose: print("\nSaving compressed script to {}... ".format(repr(filename)), end="")
 
 	try:
@@ -237,6 +242,7 @@ def write_to_file(filename, content):
 
 # The main function
 def main():
+	global in_filename, out_filename, verbose
 
 	# read in payload
 	payload = read_payload_from_file(in_filename)
@@ -247,7 +253,7 @@ def main():
 
 	# generate and print keys
 	keys = generate_placeholders(set(payload))
-	if verbose: print("\n{} valid placeholders found: {}".format(len(keys), keys))
+	if verbose: print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
 
 	# compress payload
 	payload, keys = compress_payload(payload, keys)
