@@ -59,11 +59,12 @@ def read_python_code(filename):
 
 # methode to read in code to compress
 def read_payload_from_file(filename):
+	global verbose
 	output = ""
 
 	# parse python code
 	try:
-		if verbose: print("\nReading code from \"{}\"... ".format(filename), end="")
+		if verbose: print("\nReading code from {}... ".format(repr(filename)), end="")
 		output = read_python_code(filename)
 		if verbose: print("Done!")
 
@@ -113,8 +114,9 @@ def generate_substrings(a, count_only=False):
 	minlen = min(len(a), 2)
 	maxlen = len(a) // 2
 
+	# generate substrings
 	for size in range(minlen, maxlen):
-		loops = len(a) - size + 1
+		loops = len(a) - 2*size + 1
 
 		if not count_only:
 			for start in range(loops):
@@ -127,10 +129,12 @@ def generate_substrings(a, count_only=False):
 # score substring for use in zip compression
 def score_substring(a, b):
 	size = len(b)
-	count = len(a.split(b))-1
+	count = a.count(b)
 
 	# compute gain of substring
-	return max(size-1, 0) * max(count-1, 0)
+	gain = max(size-1, 0) * max(count-1, 0) - 2
+
+	return gain
 
 
 # iterate over all substrings and find the best one
@@ -173,13 +177,15 @@ def compress_payload(payload, placeholders):
 	for key in placeholders:
 
 		# print result every iteration
-		if verbose: print("\nCurrent code length: {} bytes".format(len(payload)))
+		if verbose:
+			print("\nCurrent code length: {} bytes".format(len(payload)))
+			print(" > using placeholder: {}".format(repr(key)))
 
 		# find substring for compression
 		sub, score = find_best_substring(payload)
 
 		# stop compession loop if gain is too low
-		if score < 3:
+		if score < 1:
 			break_msg = "Gain too low!"
 			break
 
@@ -212,7 +218,7 @@ def pack_payload(payload, placeholders):
 
 # export encoder
 def write_to_file(filename, content):
-	if verbose: print("\nSaving compressed script to \"{}\"... ".format(filename), end="")
+	if verbose: print("\nSaving compressed script to {}... ".format(repr(filename)), end="")
 
 	try:
 		with open(filename, "w") as file:
@@ -235,7 +241,7 @@ def main():
 	# read in payload
 	payload = read_payload_from_file(in_filename)
 
-	# print initial code size
+	# save initial code size
 	init_size = len(payload)
 	if verbose: print("\nInitial code size: {} bytes".format(init_size))
 
@@ -260,7 +266,7 @@ def main():
 		print("Escaped code: {} bytes".format(escaped_size))
 		print("Decompressor: {} bytes".format(out_size-escaped_size))
 		print("Final script: {} bytes".format(out_size))
-		print("\nTotal Gain: {} bytes".format(init_size-out_size))
+		print("\nTotal gain: {} bytes".format(init_size-out_size))
 
 	# output to file
 	write_to_file(out_filename, output)
