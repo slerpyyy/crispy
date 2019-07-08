@@ -1,5 +1,6 @@
 import argparse
 import tokenize
+import hashlib
 import random
 import os
 
@@ -50,9 +51,8 @@ def read_python_code(filename):
 					last_col = 0
 				if scol > last_col:
 					indents = scol - last_col
-					if last_token == tokenize.NL: indents = 1
 					source_code += " " * indents
-				
+
 				# write code to buffer
 				source_code += text
 
@@ -140,11 +140,17 @@ def generate_substrings(string):
 
 		# list of items to ignore only within this iteration
 		skip = [False] * (strlen - size + 1)
+		ignore_counter = 0
 
 		for start in range(loops):
 
+			# ignore substring
+			if ignore[start]:
+				ignore_counter += 1
+				continue
+
 			# skip substring
-			if skip[start] or ignore[start]: continue
+			if skip[start]: continue
 
 			# create substring
 			end = start + size
@@ -164,13 +170,15 @@ def generate_substrings(string):
 			# ignore subs, that only appear once
 			if count < 2:
 				ignore[start] = True
+				ignore_counter += 1
 				continue
 
 			# compute gain of substring
 			gain = max(size-1, 0) * max(count-1, 0) - 2
+			yield sub, gain, (start, size)
 
-			# yield substring
-			yield sub, gain
+		# exit function if all substrings are set to ignore
+		if ignore_counter == loops: return
 
 
 # iterate over all substrings and find the best one
@@ -179,14 +187,16 @@ def find_best_substring(string):
 
 	best_sub = ""
 	best_score = 0
+	best_token = None
 	counter = 0
 
-	for sub, score in generate_substrings(string):
+	for sub, score, token in generate_substrings(string):
 		counter += 1
 
 		if score > best_score:
 			best_sub = sub
 			best_score = score
+			best_token = token
 
 			# log best substring
 			if verbose:
@@ -196,7 +206,7 @@ def find_best_substring(string):
 	if verbose: print(" * {} substrings checked".format(counter))
 
 	# return substring
-	return best_sub, best_score
+	return best_sub, best_score, best_token
 
 
 # compression loop
@@ -204,6 +214,7 @@ def compress_payload(payload, placeholders):
 	global verbose
 	keys_used = ""
 	break_msg = "Out of placeholders!"
+	debug_hash = hashlib.md5()
 
 	for key in placeholders:
 
@@ -213,12 +224,17 @@ def compress_payload(payload, placeholders):
 			print(" > using placeholder: {}".format(repr(key)))
 
 		# find substring for compression
-		sub, score = find_best_substring(payload)
+		sub, score, token = find_best_substring(payload)
 
 		# stop compession loop if gain is too low
 		if score < 1:
 			break_msg = "Gain too low!"
 			break
+
+		# update compression hash
+		index, length = token
+		buff = "{}:{},".format(index, length)
+		debug_hash.update(buff.encode('ascii'))
 
 		# replace substring with key
 		parts = list(payload.split(sub))
@@ -229,7 +245,9 @@ def compress_payload(payload, placeholders):
 		keys_used = key + keys_used
 
 	# log out of placeholders loop break
-	if verbose: print("\nCompression loop break: {}\n".format(break_msg))
+	if verbose:
+		print("\nCompression loop break: {}".format(break_msg))
+		print("\nDebug hash: {}\n".format(debug_hash.hexdigest()))
 
 	return payload, keys_used
 
