@@ -16,8 +16,6 @@ optional arguments:
   -h, --help      show this help message and exit
   -o outfile      specify the output file
   -v, --verbose   enable verbose output
-  -p, --progress  add periodic progress updates to verbose output
-                  (recommended for large payloads)
 ```
 
 ## Example

@@ -9,14 +9,12 @@ in_filename_default = ".crispy.output.py"
 parser.add_argument("i", metavar="infile", help="specify the input file")
 parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
-parser.add_argument("-p", "--progress", action='store_true', help="add periodic progress updates to verbose output\n(recommended for large payloads)")
 
 # write args to global vars
 args = vars(parser.parse_args())
 in_filename = args["i"]
 out_filename = args["o"]
 verbose = args["verbose"]
-progress = args["progress"]
 
 
 
@@ -110,54 +108,63 @@ def generate_placeholders(invalid):
 
 
 # generate substrings suitable for compression
-def generate_substrings(a, count_only=False):
-	minlen = min(len(a), 2)
-	maxlen = len(a) // 2
+def generate_substrings(string):
+	strlen = len(string)
+	minlen = min(strlen, 2)
+	maxlen = strlen // 2
+
+	# list of subs, that can safely be ignored
+	ignore = [False] * strlen
 
 	# generate substrings
 	for size in range(minlen, maxlen):
-		loops = len(a) - 2*size + 1
+		loops = strlen - 2*size + 1
 
-		if not count_only:
-			for start in range(loops):
-				end = start + size
-				sub = a[start:end]
-				yield sub
+		# list of items to ignore only within this iteration
+		skip = [False] * (strlen - size + 1)
 
-		else: yield loops
+		for start in range(loops):
 
+			# skip substring
+			if skip[start] or ignore[start]: continue
 
-# score substring for use in zip compression
-def score_substring(a, b):
-	size = len(b)
-	count = a.count(b)
+			# create substring
+			end = start + size
+			sub = string[start:end]
 
-	# compute gain of substring
-	gain = max(size-1, 0) * max(count-1, 0) - 2
+			# find all occurences of sub in string
+			count = 1
+			index = start
+			while True:
+				index = string.find(sub, index + size - 1)
+				if index < 0: break
+				count += 1
 
-	return gain
+				# skip all further occurences of this substring
+				skip[index] = True
+
+			# ignore subs, that only appear once
+			if count < 2:
+				ignore[start] = True
+				continue
+
+			# compute gain of substring
+			gain = max(size-1, 0) * max(count-1, 0) - 2
+
+			# yield substring
+			yield sub, gain
 
 
 # iterate over all substrings and find the best one
-def find_best_substring(a):
-	global verbose, progress
+def find_best_substring(string):
+	global verbose
+
 	best_sub = ""
 	best_score = 0
-	
-	size = len(a)
-	iterations = sum(generate_substrings(a, count_only=True))
 	counter = 0
 
-	# print total number of iterations
-	if verbose: print(" * {} substrings to search".format(iterations))
-
-	for sub in generate_substrings(a):
-		score = score_substring(a, sub)
+	for sub, score in generate_substrings(string):
 		counter += 1
-
-		# periodic status updates
-		if verbose and progress and (counter % (iterations // 32) == 0):
-			print(" * {:3d}% completed".format(round(100 * counter // iterations, 2)))
 
 		if score > best_score:
 			best_sub = sub
@@ -166,6 +173,9 @@ def find_best_substring(a):
 			# log best substring
 			if verbose:
 				print(" > substring found {} : {}".format(repr(sub), score))
+
+	# print counter
+	if verbose: print(" * {} substrings checked".format(counter))
 
 	# return substring
 	return best_sub, best_score
@@ -267,12 +277,12 @@ def main():
 		payload_size = len(payload)
 		escaped_size = len(escaped)
 		out_size = len(output)
-		print("Initial code: {} bytes".format(init_size))
-		print("Payload code: {} bytes".format(payload_size))
-		print("Escaped code: {} bytes".format(escaped_size))
-		print("Decompressor: {} bytes".format(out_size-escaped_size))
-		print("Final script: {} bytes".format(out_size))
-		print("\nTotal gain: {} bytes".format(init_size-out_size))
+		print("Initial size: {:4d} bytes".format(init_size))
+		print("Payload size: {:4d} bytes".format(payload_size))
+		print("Escaped code: {:4d} bytes".format(escaped_size))
+		print("Decoder size: {:4d} bytes".format(out_size-escaped_size))
+		print("Final script: {:4d} bytes".format(out_size))
+		print("\nTotal gain: {:4d} bytes".format(init_size-out_size))
 
 	# output to file
 	write_to_file(out_filename, output)
