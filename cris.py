@@ -32,6 +32,7 @@ def read_python_code(filename):
 	with open(filename, "r") as file:
 		last_line = -1
 		last_col = 0
+		last_token = tokenize.COMMENT
 
 		# read source code in tokens
 		tokgen = tokenize.generate_tokens(file.readline)
@@ -42,15 +43,26 @@ def read_python_code(filename):
 				raise ParsingError("Failed to parse python code.")
 
 			# remove comments and empty lines
-			if token == tokenize.COMMENT or token == tokenize.NL: continue
+			if token != tokenize.COMMENT and token != tokenize.NL:
 
-			# restore indentation
-			if sline > last_line: last_col = 0
-			if scol > last_col: source_code += " " * (scol - last_col)
-			last_line, last_col = eline, ecol
+				# restore indentation
+				if sline > last_line:
+					last_col = 0
+				if scol > last_col:
+					indents = scol - last_col
+					if last_token == tokenize.NL: indents = 1
+					source_code += " " * indents
+				
+				# write code to buffer
+				source_code += text
 
-			# write code to buffer
-			source_code += text
+			# update vars
+			last_line = eline
+			last_col = ecol
+			last_token = token
+
+	# replace tabs with spaces
+	source_code = source_code.replace("\t", " ")
 
 	# return the read source code
 	return source_code
@@ -81,7 +93,7 @@ def read_payload_from_file(filename):
 	# exit on any other error
 	except Exception as e:
 		if verbose: print("ERROR!")
-		print("\nError: {}\n\n".format(str(e)))
+		print("\nError: Failed to read infile\n\n".format(str(e)))
 		exit(-1)
 
 	return output, size
@@ -93,12 +105,14 @@ def read_payload_from_file(filename):
 # create string of valid placeholders
 def generate_placeholders(invalid):
 
-	# alphabet of placeholders
-	res = "!#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~"
-	
-	# remove invalid characters
-	for char in invalid:
-		res = res.replace(char, "")
+	# generate placeholders
+	res = ""
+	for i in range(0x20, 0x7E):
+		key = chr(i)
+
+		# add key if not invalid
+		if key not in invalid:
+			res += key
 
 	# random shuffle for style
 	temp = list(res)
@@ -283,12 +297,16 @@ def main():
 		payload_size = len(payload)
 		escaped_size = len(escaped)
 		out_size = len(output)
+		total_gain = init_size - out_size
 		print("Initial size: {:4d} bytes".format(init_size))
 		print("Payload size: {:4d} bytes".format(payload_size))
 		print("Escaped code: {:4d} bytes".format(escaped_size))
 		print("Decoder size: {:4d} bytes".format(out_size-escaped_size))
 		print("Final script: {:4d} bytes".format(out_size))
-		print("\nTotal gain: {} bytes".format(init_size-out_size))
+		print("\nTotal gain: {} bytes".format(total_gain))
+
+		if total_gain < 0:
+			print("\nWarning: File size increased during compression!")
 
 	# output to file
 	write_to_file(out_filename, output)
