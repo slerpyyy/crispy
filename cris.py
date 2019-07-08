@@ -1,6 +1,7 @@
 import argparse
 import tokenize
 import random
+import os
 
 # args parsing
 parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
@@ -59,28 +60,31 @@ def read_python_code(filename):
 def read_payload_from_file(filename):
 	global verbose
 	output = ""
+	size = 0
 
-	# parse python code
 	try:
-		if verbose: print("\nReading code from {}... ".format(repr(filename)), end="")
-		output = read_python_code(filename)
-		if verbose: print("Done!")
+		# parse python code
+		try:
+			if verbose: print("\nReading code from {}... ".format(repr(filename)), end="")
+			size = os.stat(filename).st_size
+			output = read_python_code(filename)
+			if verbose: print("Done!")
 
-	# exit if file not found
-	except FileNotFoundError:
+		# read file without python script optimisation
+		except ParsingError:
+			with open(filename, "r") as file: output = file.read()
+			if verbose:
+				print("Done!\n")
+				print("Warning: Failed to parse input file as python code.")
+				print("Continuing without Python script optimisation.")
+
+	# exit on any other error
+	except Exception as e:
 		if verbose: print("ERROR!")
-		print("\nError: Input File not found\n\n")
+		print("\nError: {}\n\n".format(str(e)))
 		exit(-1)
 
-	# read file without python script optimisation
-	except ParsingError:
-		with open(filename, "r") as file: output = file.read()
-		if verbose:
-			print("Done!\n")
-			print("Warning: Failed to parse input file as python code.")
-			print("Continuing without Python script optimisation.")
-
-	return output
+	return output, size
 
 
 
@@ -255,11 +259,13 @@ def main():
 	global in_filename, out_filename, verbose
 
 	# read in payload
-	payload = read_payload_from_file(in_filename)
+	payload, file_size = read_payload_from_file(in_filename)
 
 	# save initial code size
 	init_size = len(payload)
-	if verbose: print("\nInitial code size: {} bytes".format(init_size))
+	if verbose:
+		print("\nFile size: {} bytes".format(file_size))
+		print("Code size: {} bytes".format(init_size))
 
 	# generate and print keys
 	keys = generate_placeholders(set(payload))
@@ -282,7 +288,7 @@ def main():
 		print("Escaped code: {:4d} bytes".format(escaped_size))
 		print("Decoder size: {:4d} bytes".format(out_size-escaped_size))
 		print("Final script: {:4d} bytes".format(out_size))
-		print("\nTotal gain: {:4d} bytes".format(init_size-out_size))
+		print("\nTotal gain: {} bytes".format(init_size-out_size))
 
 	# output to file
 	write_to_file(out_filename, output)
