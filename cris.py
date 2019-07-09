@@ -1,8 +1,11 @@
+#!/usr/bin/python3
+
 import argparse
 import tokenize
 import hashlib
 import random
 import os
+
 
 # args parsing
 parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
@@ -260,7 +263,7 @@ def pack_payload(payload, placeholders):
 
 	# raw decoder code
 	decoder = "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\nexec(c)"
-	
+
 	# pack payload into decoder
 	return decoder.format(payload, placeholders)
 
@@ -274,7 +277,7 @@ def write_to_file(filename, content):
 	try:
 		with open(filename, "w") as file:
 			file.write(content)
-	
+
 	except:
 		if verbose: print("ERROR!")
 		print("\nError: Failed to write to outfile\n\n")
