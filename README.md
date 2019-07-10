@@ -10,18 +10,18 @@ usage: cris.py [-h] [-o outfile] [-v] infile
 a small and simple Python script packer
 
 positional arguments:
-  infile          specify the input file
+  infile         specify the input file
 
 optional arguments:
-  -h, --help      show this help message and exit
-  -o outfile      specify the output file
-  -v, --verbose   enable verbose output
+  -h, --help     show this help message and exit
+  -o outfile     specify the output file
+  -v, --verbose  increase verbosity level
 ```
 
 ## Example
 In the following example, we want to compress the file "input.py" and store the result in "output.py". We are going to use the following command:
 ```
-python cris.py input.py -o output.py -v
+python cris.py input.py -o output.py -vv
 ```
 
 The "input.py" file in our example looks like this:

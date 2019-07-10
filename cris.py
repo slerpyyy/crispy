@@ -7,19 +7,22 @@ import random
 import os
 
 
-# args parsing
-parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
+# method for parsing command line arguments
+def parse_cmd_args():
+	global in_filename, out_filename, verbose
 
-in_filename_default = ".crispy.output.py"
-parser.add_argument("i", metavar="infile", help="specify the input file")
-parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
-parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
+	# init args parser
+	in_filename_default = ".crispy.output.py"
+	parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
+	parser.add_argument("i", metavar="infile", help="specify the input file")
+	parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
+	parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity level")
 
-# write args to global vars
-args = vars(parser.parse_args())
-in_filename = args["i"]
-out_filename = args["o"]
-verbose = args["verbose"]
+	# write args to global vars
+	args = vars(parser.parse_args())
+	in_filename = args["i"]
+	out_filename = args["o"]
+	verbose = args["verbose"]
 
 
 
@@ -80,22 +83,22 @@ def read_payload_from_file(filename):
 	try:
 		# parse python code
 		try:
-			if verbose: print("\nReading code from {}... ".format(repr(filename)), end="")
+			if verbose > 0: print("\nReading code from {}... ".format(repr(filename)), end="")
 			size = os.stat(filename).st_size
 			output = read_python_code(filename)
-			if verbose: print("Done!")
+			if verbose > 0: print("Done!")
 
 		# read file without python script optimisation
 		except ParsingError:
 			with open(filename, "r") as file: output = file.read()
-			if verbose:
+			if verbose > 0:
 				print("Done!\n")
 				print("Warning: Failed to parse input file as python code.")
 				print("Continuing without Python script optimisation.")
 
 	# exit on any other error
 	except Exception as e:
-		if verbose: print("ERROR!")
+		if verbose > 0: print("ERROR!")
 		print("\nError: Failed to read infile\n\n".format(str(e)))
 		exit(-1)
 
@@ -107,6 +110,9 @@ def read_payload_from_file(filename):
 
 # create string of valid placeholders
 def generate_placeholders(invalid):
+
+	# create set from string
+	invalid = set(invalid)
 
 	# generate placeholders
 	res = ""
@@ -123,6 +129,26 @@ def generate_placeholders(invalid):
 	res = "".join(temp)
 
 	return res
+
+
+# yields a string of characters and the number of times they appear
+def inverted_histogram(string):
+
+	# create histogram
+	histo = {}
+	for char in string:
+		if char in histo: histo[char] += 1
+		else: histo[char] = 1
+
+	# invert histogram
+	inv = {}
+	for char, count in histo.items():
+		if count in inv: inv[count] += char
+		else: inv[count] = char
+
+	# yield strings
+	for key in sorted(inv.keys()):
+		yield inv[key], key
 
 
 
@@ -202,11 +228,11 @@ def find_best_substring(string):
 			best_token = token
 
 			# log best substring
-			if verbose:
+			if verbose > 1:
 				print(" > substring found {} : {}".format(repr(sub), score))
 
 	# print counter
-	if verbose: print(" * {} substrings checked".format(counter))
+	if verbose > 1: print(" * {} substrings checked".format(counter))
 
 	# return substring
 	return best_sub, best_score, best_token
@@ -215,16 +241,24 @@ def find_best_substring(string):
 # compression loop
 def compress_payload(payload, placeholders):
 	global verbose
+	loop_counter = 0
+	max_iter = len(placeholders)
 	keys_used = ""
 	break_msg = "Out of placeholders!"
 	debug_hash = hashlib.md5()
 
+	# log start of compression loop
+	if verbose > 0:
+		print("\nStarting compression loop")
+
 	for key in placeholders:
+		loop_counter += 1
 
 		# print result every iteration
-		if verbose:
-			print("\nCurrent code length: {} bytes".format(len(payload)))
-			print(" > using placeholder: {}".format(repr(key)))
+		if verbose > 1:
+			print("\nIteration {} (max. {})".format(loop_counter, max_iter))
+			print(" * current code: {} bytes".format(len(payload)))
+			print(" * using placeholder: {}".format(repr(key)))
 
 		# find substring for compression
 		sub, score, token = find_best_substring(payload)
@@ -237,7 +271,7 @@ def compress_payload(payload, placeholders):
 		# update compression hash
 		index, length = token
 		buff = "{}:{},".format(index, length)
-		debug_hash.update(buff.encode('ascii'))
+		debug_hash.update(buff.encode("ascii"))
 
 		# replace substring with key
 		parts = list(payload.split(sub))
@@ -247,8 +281,8 @@ def compress_payload(payload, placeholders):
 		# update list of used keys
 		keys_used = key + keys_used
 
-	# log out of placeholders loop break
-	if verbose:
+	# log placeholders loop break
+	if verbose > 0:
 		print("\nCompression loop break: {}".format(break_msg))
 		print("\nDebug hash: {}\n".format(debug_hash.hexdigest()))
 
@@ -272,18 +306,18 @@ def pack_payload(payload, placeholders):
 def write_to_file(filename, content):
 	global verbose
 
-	if verbose: print("\nSaving compressed script to {}... ".format(repr(filename)), end="")
+	if verbose > 0: print("\nSaving compressed script to {}... ".format(repr(filename)), end="")
 
 	try:
 		with open(filename, "w") as file:
 			file.write(content)
 
 	except:
-		if verbose: print("ERROR!")
+		if verbose > 0: print("ERROR!")
 		print("\nError: Failed to write to outfile\n\n")
 		exit(-1)
 
-	if verbose: print("Done!\n\n")
+	if verbose > 0: print("Done!\n\n")
 
 
 
@@ -293,18 +327,34 @@ def write_to_file(filename, content):
 def main():
 	global in_filename, out_filename, verbose
 
+	# parse command line arguments
+	parse_cmd_args()
+
 	# read in payload
 	payload, file_size = read_payload_from_file(in_filename)
 
 	# save initial code size
 	init_size = len(payload)
-	if verbose:
+	if verbose > 0:
 		print("\nFile size: {} bytes".format(file_size))
 		print("Code size: {} bytes".format(init_size))
 
 	# generate and print keys
-	keys = generate_placeholders(set(payload))
-	if verbose: print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
+	keys = generate_placeholders(payload)
+	if verbose > 0: print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
+
+	# print least used characters in payload
+	if verbose > 0:
+		for string, count in inverted_histogram(payload):
+			if count > 10: break
+
+			msg = " # {} appears only {}"
+			if len(string) > 1: msg = msg.replace("s", "")
+
+			amount = "{} times".format(count)
+			if count < 3: amount = (["once", "twice"])[count-1]
+			
+			print(msg.format(repr(string), amount))
 
 	# compress payload
 	payload, keys = compress_payload(payload, keys)
@@ -314,7 +364,7 @@ def main():
 	output = pack_payload(escaped, repr(keys))
 
 	# output file size
-	if verbose:
+	if verbose > 0:
 		payload_size = len(payload)
 		escaped_size = len(escaped)
 		out_size = len(output)
@@ -336,7 +386,8 @@ def main():
 
 
 
-# handle keyboard interrupt
-try: main()
-except KeyboardInterrupt:
-	if verbose: print("\n\nProgram has been stopped by user\n\n")
+# run main and handle keyboard interrupt
+if __name__ == "__main__":
+	try: main()
+	except KeyboardInterrupt:
+		if verbose > 0: print("\n\nProgram has been stopped by user\n\n")
