@@ -116,12 +116,14 @@ def generate_placeholders(invalid):
 
 	# generate placeholders
 	res = ""
-	for i in range(0x20, 0x7E):
+	for i in range(128):
 		key = chr(i)
 
-		# add key if not invalid
-		if key not in invalid:
-			res += key
+		# filter placeholder
+		if len(repr(repr(key))) > 5: continue
+		if key in invalid: continue
+		
+		res += key
 
 	# random shuffle for style
 	temp = list(res)
@@ -348,7 +350,7 @@ def main():
 		for string, count in inverted_histogram(payload):
 			if count > 10: break
 
-			msg = " # {} appears only {}"
+			msg = " # {} appears {}"
 			if len(string) > 1: msg = msg.replace("s", "")
 
 			amount = "{} times".format(count)
