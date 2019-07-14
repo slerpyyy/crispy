@@ -120,8 +120,8 @@ def generate_placeholders(invalid):
 		key = chr(i)
 
 		# filter placeholder
-		if len(repr(repr(key))) > 5: continue
 		if key in invalid: continue
+		if len(repr(repr(key))) > 5: continue
 		
 		res += key
 
@@ -191,7 +191,7 @@ def generate_substrings(string):
 			count = 1
 			index = start
 			while True:
-				index = string.find(sub, index + size - 1)
+				index = string.find(sub, index + size)
 				if index < 0: break
 				count += 1
 
