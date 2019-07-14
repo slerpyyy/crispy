@@ -204,9 +204,15 @@ def generate_substrings(string):
 				ignore_counter += 1
 				continue
 
-			# compute gain of substring
-			gain = max(size-1, 0) * max(count-1, 0) - 2
-			yield sub, gain, (start, size)
+			# compute score of substring
+			gain = size * count
+			cost = size + count + 1
+			score = gain - cost
+
+			# generate token
+			token = "{:x}:{:x};".format(start, size)
+
+			yield sub, score, token
 
 		# exit function if all substrings are set to ignore
 		if ignore_counter == loops: return
@@ -225,16 +231,20 @@ def find_best_substring(string):
 		counter += 1
 
 		if score > best_score:
-			best_sub = sub
-			best_score = score
-			best_token = token
 
 			# log best substring
 			if verbose > 1:
 				print(" > substring found {} : {}".format(repr(sub), score))
 
+			# update vars
+			best_sub = sub
+			best_score = score
+			best_token = token
+
 	# print counter
-	if verbose > 1: print(" * {} substrings checked".format(counter))
+	if verbose > 1:
+		print(" * {} substrings checked".format(counter))
+		print(" * debug token: {}".format(repr(best_token)))
 
 	# return substring
 	return best_sub, best_score, best_token
@@ -271,9 +281,7 @@ def compress_payload(payload, placeholders):
 			break
 
 		# update compression hash
-		index, length = token
-		buff = "{}:{},".format(index, length)
-		debug_hash.update(buff.encode("ascii"))
+		debug_hash.update(token.encode("ascii"))
 
 		# replace substring with key
 		parts = list(payload.split(sub))
@@ -348,7 +356,7 @@ def main():
 	# print least used characters in payload
 	if verbose > 0:
 		for string, count in inverted_histogram(payload):
-			if count > 10: break
+			if verbose < 2 and count > 16: break
 
 			msg = " # {} appears {}"
 			if len(string) > 1: msg = msg.replace("s", "")
