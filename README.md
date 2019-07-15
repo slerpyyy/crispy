@@ -5,7 +5,7 @@ crispy is a small and simple Python script packer intended to be used in size-co
 
 ## Usage
 ```
-usage: cris.py [-h] [-o outfile] [-m] [-f] [-v] infile
+usage: cris.py infile [-o outfile] [-mfv]
 
 a small and simple Python script packer
 
@@ -23,7 +23,7 @@ optional arguments:
 ## Example
 In the following example, we want to compress the file "input.py" and store the result in "output.py". We are going to use the following command:
 ```
-python cris.py input.py -o output.py -vv
+python cris.py input.py -o output.py -m -vv
 ```
 
 The "input.py" file in our example looks like this:

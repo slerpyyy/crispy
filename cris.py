@@ -11,8 +11,14 @@ import os
 def parse_cmd_args():
 	global in_filename, out_filename, verbose, minify, fast_mode
 
+	# edit help message
+	class CustomArgumentParser(argparse.ArgumentParser):
+		def format_help(self):
+			return "\n" + super().format_help() + "\n\n"
+
 	# init args parser object
-	parser = argparse.ArgumentParser(
+	parser = CustomArgumentParser(
+		usage="%(prog)s infile [-o outfile] [-mfv]",
 		description="a small and simple Python script packer",
 		formatter_class=argparse.RawTextHelpFormatter
 	)
@@ -137,7 +143,7 @@ def generate_placeholders(invalid):
 
 	# generate placeholders
 	res = ""
-	for i in range(128):
+	for i in range(0x80):
 		key = chr(i)
 
 		# filter placeholder
