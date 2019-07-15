@@ -9,88 +9,109 @@ import os
 
 # method for parsing command line arguments
 def parse_cmd_args():
-	global in_filename, out_filename, verbose
+	global in_filename, out_filename, verbose, minify, fast_mode
 
-	# init args parser
+	# init args parser object
+	parser = argparse.ArgumentParser(
+		description="a small and simple Python script packer",
+		formatter_class=argparse.RawTextHelpFormatter
+	)
+	
+	# set cmd args
 	in_filename_default = ".crispy.output.py"
-	parser = argparse.ArgumentParser(description="a small and simple Python script packer", epilog="", formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument("i", metavar="infile", help="specify the input file")
 	parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
+	parser.add_argument("-m", "--minify", action="store_true", help="minify python script (experimental)")
+	parser.add_argument("-f", "--fast", action="store_true", help="enable light compression mode for testing")
 	parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity level")
 
 	# write args to global vars
 	args = vars(parser.parse_args())
 	in_filename = args["i"]
 	out_filename = args["o"]
+	minify = args["minify"]
+	fast_mode = args["fast"]
 	verbose = args["verbose"]
 
 
 
 
 
-# define ParsingError
-class ParsingError(Exception): pass
-
-
 # method for reading python source code
-def read_python_code(filename):
+def read_python_script(filename):
 	source_code = ""
 
 	with open(filename, "r") as file:
-		last_line = -1
-		last_col = 0
-		last_token = tokenize.COMMENT
+		last_token = None
+		last_erow  = -1
+		last_ecol = 0
 
 		# read source code in tokens
 		tokgen = tokenize.generate_tokens(file.readline)
-		for token, text, (sline, scol), (eline, ecol), ltext in tokgen:
+		for token, text, (srow , scol), (erow , ecol), line in tokgen:
 
 			# check for parsing errors
 			if token == tokenize.ERRORTOKEN:
-				raise ParsingError("Failed to parse python code.")
+				raise tokenize.TokenError("Failed to parse python code.")
 
 			# remove comments and empty lines
-			if token != tokenize.COMMENT and token != tokenize.NL:
+			if (token != tokenize.COMMENT) and (token != tokenize.NL):
+
+				# do not indent flag
+				no_indents = (token == tokenize.OP) or (last_token == tokenize.OP)
+				no_indents = no_indents or (token == tokenize.NEWLINE)
 
 				# restore indentation
-				if sline > last_line:
-					last_col = 0
-				if scol > last_col:
-					indents = scol - last_col
+				if srow  > last_erow :
+					last_ecol = 0
+				if (scol > last_ecol) and (not no_indents):
+					indents = scol - last_ecol
 					source_code += " " * indents
+
+				# convert tabs to spaces
+				if token == tokenize.INDENT:
+					text = text.replace("\t", " ")
+
+				# convert windows linebreaks to proper linebreaks
+				if token == tokenize.NEWLINE:
+					text = "\n"
 
 				# write code to buffer
 				source_code += text
 
 			# update vars
-			last_line = eline
-			last_col = ecol
 			last_token = token
-
-	# replace tabs with spaces
-	source_code = source_code.replace("\t", " ")
+			last_erow  = erow 
+			last_ecol = ecol
 
 	# return the read source code
 	return source_code
 
 
+# simple method for reading file
+def read_text_file(filename):
+	with open(filename, "r") as file:
+		return file.read()
+
+
 # methode to read in code to compress
 def read_payload_from_file(filename):
-	global verbose
+	global verbose, minify
 	output = ""
 	size = 0
 
 	try:
-		# parse python code
+		# read file and minify python code
 		try:
 			if verbose > 0: print("\nReading code from {}... ".format(repr(filename)), end="")
 			size = os.stat(filename).st_size
-			output = read_python_code(filename)
+			if minify: output = read_python_script(filename)
+			else: output = read_text_file(filename)
 			if verbose > 0: print("Done!")
 
 		# read file without python script optimisation
-		except ParsingError:
-			with open(filename, "r") as file: output = file.read()
+		except tokenize.TokenError:
+			output = read_text_file(filename)
 			if verbose > 0:
 				print("Done!\n")
 				print("Warning: Failed to parse input file as python code.")
@@ -99,7 +120,7 @@ def read_payload_from_file(filename):
 	# exit on any other error
 	except Exception as e:
 		if verbose > 0: print("ERROR!")
-		print("\nError: Failed to read infile\n\n".format(str(e)))
+		print("\nError: Failed to read infile\n\n")
 		exit(-1)
 
 	return output, size
@@ -158,6 +179,7 @@ def inverted_histogram(string):
 
 # generate substrings suitable for compression
 def generate_substrings(string):
+	global fast_mode
 	strlen = len(string)
 	minlen = min(strlen, 2)
 	maxlen = strlen // 2
@@ -190,13 +212,18 @@ def generate_substrings(string):
 			# find all occurences of sub in string
 			count = 1
 			index = start
+			overlap = index + size
 			while True:
-				index = string.find(sub, index + size)
+				index = string.find(sub, index + 1)
 				if index < 0: break
-				count += 1
-
+				
 				# skip all further occurences of this substring
 				skip[index] = True
+
+				# increment counter, if the substrings do not overlap
+				if index >= overlap:
+					overlap = index + size
+					count += 1
 
 			# ignore subs, that only appear once
 			if count < 2:
@@ -214,8 +241,8 @@ def generate_substrings(string):
 
 			yield sub, score, token
 
-		# exit function if all substrings are set to ignore
-		if ignore_counter == loops: return
+		# exit function if all substrings are set to be ignored or is fast mode is enabled
+		if fast_mode or (ignore_counter == loops): return
 
 
 # iterate over all substrings and find the best one
@@ -224,13 +251,13 @@ def find_best_substring(string):
 
 	best_sub = ""
 	best_score = 0
-	best_token = None
+	best_token = ""
 	counter = 0
 
 	for sub, score, token in generate_substrings(string):
 		counter += 1
 
-		if score > best_score:
+		if score >= best_score:
 
 			# log best substring
 			if verbose > 1:
@@ -290,6 +317,11 @@ def compress_payload(payload, placeholders):
 
 		# update list of used keys
 		keys_used = key + keys_used
+
+		# break on fast mode
+		if fast_mode:
+			break_msg = "Fast mode is enabled!"
+			break
 
 	# log placeholders loop break
 	if verbose > 0:
@@ -356,7 +388,7 @@ def main():
 	# print least used characters in payload
 	if verbose > 0:
 		for string, count in inverted_histogram(payload):
-			if verbose < 2 and count > 16: break
+			if (verbose < 2) and (count > 16): break
 
 			msg = " # {} appears {}"
 			if len(string) > 1: msg = msg.replace("s", "")
