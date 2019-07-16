@@ -14,11 +14,21 @@ def parse_cmd_args():
 	# edit help message
 	class CustomArgumentParser(argparse.ArgumentParser):
 		def format_help(self):
-			return "\n" + super().format_help() + "\n\n"
+			text = super().format_help()
+			lines = text.split("\n")
+
+			# manually pushing lines around
+			# (this is ugly and horrible, but I don't have better options)
+			lines.pop(4); lines.pop(6)
+			lines.insert(10, lines.pop(6))
+			lines.insert(6, lines.pop(5))
+
+			text = "\n".join(lines)
+			return "\n" + text + "\n\n"
 
 	# init args parser object
 	parser = CustomArgumentParser(
-		usage="%(prog)s infile [-o outfile] [-mfv]",
+		usage="%(prog)s [-mfvh] [-o outfile] infile",
 		description="a small and simple Python script packer",
 		formatter_class=argparse.RawTextHelpFormatter
 	)
@@ -27,9 +37,9 @@ def parse_cmd_args():
 	in_filename_default = ".crispy.output.py"
 	parser.add_argument("i", metavar="infile", help="specify the input file")
 	parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
-	parser.add_argument("-m", "--minify", action="store_true", help="minify python script (experimental)")
-	parser.add_argument("-f", "--fast", action="store_true", help="enable light compression mode for testing")
-	parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity level")
+	parser.add_argument("-m", "--minify", action="store_true", help="minify python script before compressing (experimental)")
+	parser.add_argument("-f", "--fast", action="store_true", help="enable fast compression mode for testing purposes")
+	parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity level (can be set multiple times)")
 
 	# write args to global vars
 	args = vars(parser.parse_args())
@@ -356,10 +366,12 @@ def write_to_file(filename, content):
 
 	if verbose > 0: print("\nSaving compressed script to {}... ".format(repr(filename)), end="")
 
+	# write data to file
 	try:
 		with open(filename, "w") as file:
 			file.write(content)
 
+	# exit on error
 	except:
 		if verbose > 0: print("ERROR!")
 		print("\nError: Failed to write to outfile\n\n")
