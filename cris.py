@@ -4,7 +4,6 @@ import argparse
 import tokenize
 import hashlib
 import random
-import os
 
 
 # method for parsing command line arguments
@@ -53,8 +52,8 @@ def parse_cmd_args():
 
 
 
-# method for reading python source code
-def read_python_script(filename):
+# method for reading and minifying python source code
+def minify_python_script(filename):
 	source_code = ""
 
 	with open(filename, "r") as file:
@@ -101,13 +100,7 @@ def read_python_script(filename):
 			last_ecol = ecol
 
 	# return the read source code
-	return source_code
-
-
-# simple method for reading file
-def read_text_file(filename):
-	with open(filename, "r") as file:
-		return file.read()
+	return source_code	
 
 
 # methode to read in code to compress
@@ -116,22 +109,27 @@ def read_payload_from_file(filename):
 	output = ""
 	size = 0
 
+	# read python code
 	try:
-		# read file and minify python code
-		try:
-			if verbose > 0: print("\nReading code from {}... ".format(repr(filename)), end="")
-			size = os.stat(filename).st_size
-			if minify: output = read_python_script(filename)
-			else: output = read_text_file(filename)
-			if verbose > 0: print("Done!")
+		if verbose > 0: print("\nReading code from {}... ".format(repr(filename)), end="")
+		
+		# read normally
+		with open(filename, "r") as file:
+			output = file.read()
+			size = len(output)
 
-		# read file without python script optimisation
-		except tokenize.TokenError:
-			output = read_text_file(filename)
-			if verbose > 0:
-				print("Done!\n")
-				print("Warning: Failed to parse input file as python code.")
-				print("Continuing without Python script optimisation.")
+		# read again and minify
+		if minify:
+			output = minify_python_script(filename)
+
+		if verbose > 0: print("Done!")
+
+	# python script optimisation failed
+	except tokenize.TokenError:
+		if verbose > 0:
+			print("Done!\n")
+			print("Warning: Failed to parse input file as python code.")
+			print("Continuing without Python script optimisation.")
 
 	# exit on any other error
 	except Exception as e:
