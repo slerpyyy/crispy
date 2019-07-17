@@ -4,6 +4,7 @@ import argparse
 import tokenize
 import hashlib
 import random
+import io
 
 
 # method for parsing command line arguments
@@ -53,51 +54,54 @@ def parse_cmd_args():
 
 
 # method for reading and minifying python source code
-def minify_python_script(filename):
+def minify_python_script(raw_code):
+	
+	# setup vars
 	source_code = ""
+	last_token = None
+	last_erow  = -1
+	last_ecol = 0
 
-	with open(filename, "r") as file:
-		last_token = None
-		last_erow  = -1
-		last_ecol = 0
+	# setup generators
+	linegen = io.StringIO(raw_code).readline
+	tokgen = tokenize.generate_tokens(linegen)
 
-		# read source code in tokens
-		tokgen = tokenize.generate_tokens(file.readline)
-		for token, text, (srow , scol), (erow , ecol), line in tokgen:
+	# read source code in tokens
+	for token, text, (srow , scol), (erow , ecol), line in tokgen:
 
-			# check for parsing errors
-			if token == tokenize.ERRORTOKEN:
-				raise tokenize.TokenError("Failed to parse python code.")
+		# check for parsing errors
+		if token == tokenize.ERRORTOKEN:
+			raise tokenize.TokenError("Failed to parse python code.")
 
-			# remove comments and empty lines
-			if (token != tokenize.COMMENT) and (token != tokenize.NL):
+		# remove comments and empty lines
+		if (token != tokenize.COMMENT) and (token != tokenize.NL):
 
-				# do not indent flag
-				no_indents = (token == tokenize.OP) or (last_token == tokenize.OP)
-				no_indents = no_indents or (token == tokenize.NEWLINE)
+			# do not indent flag
+			no_indents = (token == tokenize.OP) or (last_token == tokenize.OP)
+			no_indents = no_indents or (token == tokenize.NEWLINE)
 
-				# restore indentation
-				if srow  > last_erow :
-					last_ecol = 0
-				if (scol > last_ecol) and (not no_indents):
-					indents = scol - last_ecol
-					source_code += " " * indents
+			# restore indentation
+			if srow  > last_erow :
+				last_ecol = 0
+			if (scol > last_ecol) and (not no_indents):
+				indents = scol - last_ecol
+				source_code += " " * indents
 
-				# convert tabs to spaces
-				if token == tokenize.INDENT:
-					text = text.replace("\t", " ")
+			# convert tabs to spaces
+			if token == tokenize.INDENT:
+				text = text.replace("\t", " ")
 
-				# convert windows linebreaks to proper linebreaks
-				if token == tokenize.NEWLINE:
-					text = "\n"
+			# convert windows linebreaks to proper linebreaks
+			if token == tokenize.NEWLINE:
+				text = "\n"
 
-				# write code to buffer
-				source_code += text
+			# write code to buffer
+			source_code += text
 
-			# update vars
-			last_token = token
-			last_erow  = erow 
-			last_ecol = ecol
+		# update vars
+		last_token = token
+		last_erow  = erow 
+		last_ecol = ecol
 
 	# return the read source code
 	return source_code	
@@ -120,7 +124,13 @@ def read_payload_from_file(filename):
 
 		# read again and minify
 		if minify:
-			output = minify_python_script(filename)
+			last_size = size
+			while True:
+				output = minify_python_script(output)
+				curr_size = len(output)
+				
+				if curr_size == last_size: break
+				last_size = curr_size
 
 		if verbose > 0: print("Done!")
 
@@ -131,11 +141,11 @@ def read_payload_from_file(filename):
 			print("Warning: Failed to parse input file as python code.")
 			print("Continuing without Python script optimisation.")
 
-	# exit on any other error
-	except Exception as e:
-		if verbose > 0: print("ERROR!")
-		print("\nError: Failed to read infile\n\n")
-		exit(-1)
+	## exit on any other error
+	#except Exception as e:
+	#	if verbose > 0: print("ERROR!")
+	#	print("\nError: Failed to read infile\n\n")
+	#	exit(-1)
 
 	return output, size
 
