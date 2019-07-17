@@ -18,7 +18,7 @@ def parse_cmd_args():
 			lines = text.split("\n")
 
 			# manually pushing lines around
-			# (this is ugly and horrible, but I don't have better options)
+			# (ugly and horrible, but I don't have better options)
 			lines.pop(4); lines.pop(6)
 			lines.insert(10, lines.pop(6))
 			lines.insert(6, lines.pop(5))
@@ -53,17 +53,45 @@ def parse_cmd_args():
 
 
 
-# method for reading and minifying python source code
-def minify_python_script(raw_code):
+# methode to read in code to compress
+def read_payload_from_file(filename):
+	global verbose
+	output = ""
+	size = 0
+
+	# read code
+	try:
+		if verbose > 0: print("\nReading code from {}... ".format(repr(filename)), end="")
+		
+		with open(filename, "r") as file:
+			output = file.read()
+			size = len(output)
+
+		if verbose > 0: print("Done!")
+
+	# exit on any other error
+	except Exception as e:
+		if verbose > 0: print("ERROR!")
+		print("\nError: Failed to read infile\n\n")
+		exit(-1)
+
+	return output, size
+
+
+
+
+
+# method for minifying python source code
+def minify_iteration(input_code):
 	
 	# setup vars
-	source_code = ""
+	output_code = ""
 	last_token = None
 	last_erow  = -1
 	last_ecol = 0
 
 	# setup generators
-	linegen = io.StringIO(raw_code).readline
+	linegen = io.StringIO(input_code).readline
 	tokgen = tokenize.generate_tokens(linegen)
 
 	# read source code in tokens
@@ -81,11 +109,11 @@ def minify_python_script(raw_code):
 			no_indents = no_indents or (token == tokenize.NEWLINE)
 
 			# restore indentation
-			if srow  > last_erow :
+			if srow  > last_erow:
 				last_ecol = 0
 			if (scol > last_ecol) and (not no_indents):
 				indents = scol - last_ecol
-				source_code += " " * indents
+				output_code += " " * indents
 
 			# convert tabs to spaces
 			if token == tokenize.INDENT:
@@ -96,7 +124,7 @@ def minify_python_script(raw_code):
 				text = "\n"
 
 			# write code to buffer
-			source_code += text
+			output_code += text
 
 		# update vars
 		last_token = token
@@ -104,50 +132,40 @@ def minify_python_script(raw_code):
 		last_ecol = ecol
 
 	# return the read source code
-	return source_code	
+	return output_code	
 
 
-# methode to read in code to compress
-def read_payload_from_file(filename):
-	global verbose, minify
-	output = ""
-	size = 0
+# minify code iteratively
+def python_minifier(code):
+	global verbose, fast_mode
 
-	# read python code
 	try:
-		if verbose > 0: print("\nReading code from {}... ".format(repr(filename)), end="")
-		
-		# read normally
-		with open(filename, "r") as file:
-			output = file.read()
-			size = len(output)
+		if verbose > 0: print("\nMinifying python code... ", end="")
 
-		# read again and minify
-		if minify:
-			last_size = size
-			while True:
-				output = minify_python_script(output)
-				curr_size = len(output)
-				
-				if curr_size == last_size: break
-				last_size = curr_size
+		last_size = len(code)
+		while True:
+
+			# minify once
+			code = minify_iteration(code)
+			
+			# break early in fast mode
+			if fast_mode: break
+
+			# check for gain
+			curr_size = len(code)
+			if curr_size == last_size: break
+			last_size = curr_size
 
 		if verbose > 0: print("Done!")
 
-	# python script optimisation failed
+	# break on token error
 	except tokenize.TokenError:
 		if verbose > 0:
-			print("Done!\n")
+			print("WARNING!\n")
 			print("Warning: Failed to parse input file as python code.")
 			print("Continuing without Python script optimisation.")
 
-	## exit on any other error
-	#except Exception as e:
-	#	if verbose > 0: print("ERROR!")
-	#	print("\nError: Failed to read infile\n\n")
-	#	exit(-1)
-
-	return output, size
+	return code
 
 
 
@@ -303,7 +321,7 @@ def find_best_substring(string):
 
 # compression loop
 def compress_payload(payload, placeholders):
-	global verbose
+	global verbose, fast_mode
 	loop_counter = 0
 	max_iter = len(placeholders)
 	keys_used = ""
@@ -393,13 +411,16 @@ def write_to_file(filename, content):
 
 # The main function
 def main():
-	global in_filename, out_filename, verbose
+	global in_filename, out_filename, verbose, minify
 
 	# parse command line arguments
 	parse_cmd_args()
 
 	# read in payload
 	payload, file_size = read_payload_from_file(in_filename)
+
+	# minify python script
+	if minify: payload = python_minifier(payload)
 
 	# save initial code size
 	init_size = len(payload)
