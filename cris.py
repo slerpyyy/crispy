@@ -104,14 +104,15 @@ def minify_iteration(input_code):
 		# remove comments and empty lines
 		if (token != tokenize.COMMENT) and (token != tokenize.NL):
 
-			# do not indent flag
-			no_indents = (token == tokenize.OP) or (last_token == tokenize.OP)
-			no_indents = no_indents or (token == tokenize.NEWLINE)
+			# set indent flag
+			set_indents = (token != tokenize.NEWLINE) \
+			and (token != tokenize.STRING) and (last_token != tokenize.STRING) \
+			and (token != tokenize.OP) and (last_token != tokenize.OP)
 
 			# restore indentation
 			if srow  > last_erow:
 				last_ecol = 0
-			if (scol > last_ecol) and (not no_indents):
+			if (scol > last_ecol) and set_indents:
 				indents = scol - last_ecol
 				output_code += " " * indents
 
@@ -416,10 +417,10 @@ def main():
 	# parse command line arguments
 	parse_cmd_args()
 
-	# read in payload
-	payload, file_size = read_payload_from_file(in_filename)
 
-	# minify python script
+
+	# read and minify payload
+	payload, file_size = read_payload_from_file(in_filename)
 	if minify: payload = python_minifier(payload)
 
 	# save initial code size
@@ -428,13 +429,14 @@ def main():
 		print("\nFile size: {} bytes".format(file_size))
 		print("Code size: {} bytes".format(init_size))
 
-	# generate and print keys
-	keys = generate_placeholders(payload)
-	if verbose > 0: print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
+
+
+	# generate inverted histogram
+	inv_histo = list(inverted_histogram(payload))
 
 	# print least used characters in payload
 	if verbose > 0:
-		for string, count in inverted_histogram(payload):
+		for string, count in inv_histo:
 			if (verbose < 2) and (count > 16): break
 
 			msg = " # {} appears {}"
@@ -445,12 +447,18 @@ def main():
 			
 			print(msg.format(repr(string), amount))
 
+
+
 	# compress payload
+	keys = generate_placeholders(payload)
+	if verbose > 0: print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
 	payload, keys = compress_payload(payload, keys)
 
 	# pack payload into decoder
 	escaped = repr(payload)
 	output = pack_payload(escaped, repr(keys))
+
+
 
 	# output file size
 	if verbose > 0:
