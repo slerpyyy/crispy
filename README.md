@@ -12,7 +12,8 @@ a small and simple Python script packer
   infile         specify the input file
   -o outfile     specify the output file
 
-  -m, --minify   minify python script before compressing (experimental)
+  -m, --minify   minify python script before compressing
+  -x, --hex      turn rare chars into hex numbers (experimental)
   -f, --fast     enable fast compression mode for testing purposes
   -v, --verbose  increase verbosity level (can be set multiple times)
   -h, --help     show this help message and exit

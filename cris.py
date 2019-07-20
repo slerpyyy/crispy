@@ -9,7 +9,7 @@ import io
 
 # method for parsing command line arguments
 def parse_cmd_args():
-	global in_filename, out_filename, verbose, minify, fast_mode
+	global in_filename, out_filename, minify, hex_mode, fast_mode, verbose
 
 	# edit help message
 	class CustomArgumentParser(argparse.ArgumentParser):
@@ -20,7 +20,7 @@ def parse_cmd_args():
 			# manually pushing lines around
 			# (ugly and horrible, but I don't have better options)
 			lines.pop(4); lines.pop(6)
-			lines.insert(10, lines.pop(6))
+			lines.insert(11, lines.pop(6))
 			lines.insert(6, lines.pop(5))
 
 			text = "\n".join(lines)
@@ -37,7 +37,8 @@ def parse_cmd_args():
 	in_filename_default = ".crispy.output.py"
 	parser.add_argument("i", metavar="infile", help="specify the input file")
 	parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
-	parser.add_argument("-m", "--minify", action="store_true", help="minify python script before compressing (experimental)")
+	parser.add_argument("-m", "--minify", action="store_true", help="minify python script before compressing")
+	parser.add_argument("-x", "--hex", action="store_true", help="turn rare chars into hex numbers (experimental)")
 	parser.add_argument("-f", "--fast", action="store_true", help="enable fast compression mode for testing purposes")
 	parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity level (can be set multiple times)")
 
@@ -46,6 +47,7 @@ def parse_cmd_args():
 	in_filename = args["i"]
 	out_filename = args["o"]
 	minify = args["minify"]
+	hex_mode = args["hex"]
 	fast_mode = args["fast"]
 	verbose = args["verbose"]
 
@@ -53,7 +55,7 @@ def parse_cmd_args():
 
 
 
-# methode to read in code to compress
+# method to read in code to compress
 def read_payload_from_file(filename):
 	global verbose
 	output = ""
@@ -61,7 +63,7 @@ def read_payload_from_file(filename):
 
 	# read code
 	try:
-		if verbose > 0: print("\nReading code from {}... ".format(repr(filename)), end="")
+		if verbose > 0: print("\nReading code from {}".format(repr(filename)), end="... ")
 		
 		with open(filename, "r") as file:
 			output = file.read()
@@ -120,7 +122,7 @@ def minify_iteration(input_code):
 			if token == tokenize.INDENT:
 				text = text.replace("\t", " ")
 
-			# convert windows linebreaks to proper linebreaks
+			# convert windows line breaks to proper line breaks
 			if token == tokenize.NEWLINE:
 				text = "\n"
 
@@ -141,7 +143,7 @@ def python_minifier(code):
 	global verbose, fast_mode
 
 	try:
-		if verbose > 0: print("\nMinifying python code... ", end="")
+		if verbose > 0: print("\nMinifying python code", end="... ")
 
 		last_size = len(code)
 		while True:
@@ -164,7 +166,7 @@ def python_minifier(code):
 		if verbose > 0:
 			print("WARNING!\n")
 			print("Warning: Failed to parse input file as python code.")
-			print("Continuing without Python script optimisation.")
+			print("Continuing without Python script optimization.")
 
 	return code
 
@@ -217,6 +219,37 @@ def inverted_histogram(string):
 		yield inv[key], key
 
 
+# replace rare characters in payload with their hex representation to free up placeholders
+def rare_to_hex(code, inv_histo, escape):
+
+	# set max number of occurrences for rare chars
+	# (vague unexplained hand-wavy placeholder math)
+	all_counts = [count for _, count in inv_histo]
+	first_half = all_counts[:len(all_counts)//2]
+	threshold = sum(first_half)/len(first_half)
+
+	# get string of chars to replace
+	rare_chars = ""
+	for string, count in inv_histo:
+		if count > threshold: break
+		rare_chars += string
+
+	# always translate escape character first
+	rare_chars = escape + rare_chars.replace(escape, "")
+
+	# remove literals
+	for num in range(16):
+		literal = "{:x}".format(num)
+		rare_chars = rare_chars.replace(literal, "")
+
+	# replace rare chars
+	for char in rare_chars:
+		hex_repr = escape + "{:02x}".format(ord(char))
+		code = code.replace(char, hex_repr)
+
+	return code, rare_chars
+
+
 
 
 
@@ -252,7 +285,7 @@ def generate_substrings(string):
 			end = start + size
 			sub = string[start:end]
 
-			# find all occurences of sub in string
+			# find all occurrences of sub in string
 			count = 1
 			index = start
 			overlap = index + size
@@ -260,7 +293,7 @@ def generate_substrings(string):
 				index = string.find(sub, index + 1)
 				if index < 0: break
 				
-				# skip all further occurences of this substring
+				# skip all further occurrences of this substring
 				skip[index] = True
 
 				# increment counter, if the substrings do not overlap
@@ -345,7 +378,7 @@ def compress_payload(payload, placeholders):
 		# find substring for compression
 		sub, score, token = find_best_substring(payload)
 
-		# stop compession loop if gain is too low
+		# stop compression loop if gain is too low
 		if score < 1:
 			break_msg = "Gain too low!"
 			break
@@ -378,20 +411,29 @@ def compress_payload(payload, placeholders):
 
 
 # paste payload into decoder
-def pack_payload(payload, placeholders):
+def pack_payload(payload, placeholders, escape):
+	global hex_mode
 
 	# raw decoder code
-	decoder = "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\nexec(c)"
+	decoder = "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\n".format(payload, placeholders)
 
-	# pack payload into decoder
-	return decoder.format(payload, placeholders)
+	# add code for hex decoder
+	if hex_mode:
+		decoder += "a=c.split({});c=a.pop(0)\n".format(escape)
+		decoder += "for i in a:c+=chr(int(i[:2],16))+i[2:]\n"
+
+	# run payload once decoded
+	decoder += "exec(c)"
+
+	# output decoder source code
+	return decoder
 
 
 # export encoder
 def write_to_file(filename, content):
 	global verbose
 
-	if verbose > 0: print("\nSaving compressed script to {}... ".format(repr(filename)), end="")
+	if verbose > 0: print("\nSaving compressed script to {}".format(repr(filename)), end="... ")
 
 	# write data to file
 	try:
@@ -412,12 +454,10 @@ def write_to_file(filename, content):
 
 # The main function
 def main():
-	global in_filename, out_filename, verbose, minify
+	global in_filename, out_filename, verbose, minify, hex_mode
 
 	# parse command line arguments
 	parse_cmd_args()
-
-
 
 	# read and minify payload
 	payload, file_size = read_payload_from_file(in_filename)
@@ -434,8 +474,26 @@ def main():
 	# generate inverted histogram
 	inv_histo = list(inverted_histogram(payload))
 
-	# print least used characters in payload
+	# replace rare chars with hex nums
+	hex_esc_char = "$"
+	if hex_mode:
+		if verbose > 0: print("\nConverting rare chars to hex", end="... ")
+
+		payload, replaced_chars = rare_to_hex(payload, inv_histo, hex_esc_char)
+		
+		if verbose > 0:
+			print("Done!")
+			print("\nChars replaced: {}".format(repr(replaced_chars)))
+			print("Placeholders freed up: {}".format(len(replaced_chars)))
+			print("Code size: {}".format(len(payload)))
+
+
+
+	# generate placeholders for dictionary compression
+	keys = generate_placeholders(payload)
 	if verbose > 0:
+		print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
+
 		for string, count in inv_histo:
 			if (verbose < 2) and (count > 16): break
 
@@ -449,14 +507,10 @@ def main():
 
 
 
-	# compress payload
-	keys = generate_placeholders(payload)
-	if verbose > 0: print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
+	# compress and pack payload
 	payload, keys = compress_payload(payload, keys)
-
-	# pack payload into decoder
 	escaped = repr(payload)
-	output = pack_payload(escaped, repr(keys))
+	output = pack_payload(escaped, repr(keys), repr(hex_esc_char))
 
 
 
