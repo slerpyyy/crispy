@@ -226,7 +226,7 @@ def rare_to_hex(code, inv_histo, escape):
 	# (vague unexplained hand-wavy placeholder math)
 	all_counts = [count for _, count in inv_histo]
 	first_half = all_counts[:len(all_counts)//2]
-	threshold = sum(first_half)/len(first_half)
+	threshold = sum(first_half)/max(len(first_half),1)
 
 	# get string of chars to replace
 	rare_chars = ""
