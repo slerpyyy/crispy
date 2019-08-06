@@ -1,6 +1,10 @@
 # crispy
 *Simple Python Script Packer*
 
+![build](https://img.shields.io/badge/build-this%20is%20python%20you%20patato-brightgreen)
+![works-on](https://img.shields.io/badge/works%20on-my%20mashine%E2%84%A2-orange)
+![works-on](https://img.shields.io/badge/mom%20made-pizza%20rolls-blue)
+
 crispy is a small and simple Python script packer intended to be used in size-coding challenges. It uses dictionary compression to compact the script down to a small string, which is decoded and executed once the minified program is run. The packer itself is fully self-contained and doesn't require any additional packages beyond a basic python install.
 
 ## Usage
