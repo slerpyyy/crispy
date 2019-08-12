@@ -1,10 +1,10 @@
 #!/usr/bin/python3
-
 import argparse
 import tokenize
 import hashlib
 import random
 import io
+
 
 
 # method for parsing command line arguments
@@ -101,10 +101,14 @@ def minify_iteration(input_code):
 
 		# check for parsing errors
 		if token == tokenize.ERRORTOKEN:
-			raise tokenize.TokenError("Failed to parse python code.")
+			raise tokenize.TokenError("Failed to parse python code")
 
-		# remove comments and empty lines
-		if (token != tokenize.COMMENT) and (token != tokenize.NL):
+		# choose when to keep a token
+		keep_token = (token != tokenize.COMMENT) and (token != tokenize.NL) \
+		and not ((last_token == tokenize.NEWLINE) and (token == tokenize.STRING))
+
+		# keep token if flag is set
+		if keep_token:
 
 			# set indent flag
 			set_indents = (token != tokenize.NEWLINE) \
@@ -130,12 +134,14 @@ def minify_iteration(input_code):
 			output_code += text
 
 		# update vars
-		last_token = token
 		last_erow  = erow 
 		last_ecol = ecol
 
+		if (token != tokenize.DEDENT) and (token != tokenize.INDENT):
+			last_token = token
+
 	# return the read source code
-	return output_code	
+	return output_code
 
 
 # minify code iteratively
@@ -182,7 +188,7 @@ def generate_placeholders(invalid):
 
 	# generate placeholders
 	keys = ""
-	for i in range(0x80):
+	for i in range(0x100):
 		key = chr(i)
 
 		# filter placeholder
@@ -194,7 +200,7 @@ def generate_placeholders(invalid):
 	random.shuffle(keys)
 
 	# sort after length
-	escape_cost = lambda x: len(repr(repr(x)))
+	escape_cost = lambda x: len(repr(x + '"'))
 	keys = sorted(keys, key=escape_cost)
 
 	# return result
@@ -423,7 +429,8 @@ def pack_payload(payload, placeholders, escape):
 	global hex_mode
 
 	# raw decoder code
-	decoder = "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\n".format(payload, placeholders)
+	decoder = "# -*- coding: latin-1 -*-\n"
+	decoder += "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\n".format(payload, placeholders)
 
 	# add code for hex decoder
 	if hex_mode:
