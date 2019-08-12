@@ -112,7 +112,7 @@ def minify_iteration(input_code):
 			and (token != tokenize.OP) and (last_token != tokenize.OP)
 
 			# restore indentation
-			if srow  > last_erow:
+			if srow > last_erow:
 				last_ecol = 0
 			if (scol > last_ecol) and set_indents:
 				indents = scol - last_ecol
@@ -181,22 +181,24 @@ def generate_placeholders(invalid):
 	invalid = set(invalid)
 
 	# generate placeholders
-	res = ""
+	keys = ""
 	for i in range(0x80):
 		key = chr(i)
 
 		# filter placeholder
 		if key in invalid: continue
-		if len(repr(repr(key))) > 5: continue
-		
-		res += key
+		keys += key
 
 	# random shuffle for style
-	temp = list(res)
-	random.shuffle(temp)
-	res = "".join(temp)
+	keys = list(keys)
+	random.shuffle(keys)
 
-	return res
+	# sort after length
+	escape_cost = lambda x: len(repr(repr(x)))
+	keys = sorted(keys, key=escape_cost)
+
+	# return result
+	return "".join(keys)
 
 
 # yields a string of characters and the number of times they appear
@@ -307,22 +309,17 @@ def generate_substrings(string):
 				ignore_counter += 1
 				continue
 
-			# compute score of substring
-			gain = size * count
-			cost = size + count + 1
-			score = gain - cost
-
 			# generate token
 			token = "{:x}:{:x};".format(start, size)
 
-			yield sub, score, token
+			yield sub, size, count, token
 
 		# exit function if all substrings are set to be ignored or is fast mode is enabled
 		if fast_mode or (ignore_counter == loops): return
 
 
 # iterate over all substrings and find the best one
-def find_best_substring(string):
+def find_best_substring(string, key):
 	global verbose
 
 	best_sub = ""
@@ -330,8 +327,19 @@ def find_best_substring(string):
 	best_token = ""
 	counter = 0
 
-	for sub, score, token in generate_substrings(string):
+	# output additional cost
+	key_cost = len(repr(key + '"')) - 3
+	if verbose > 1:
+		print(" * cost of placeholder: {}".format(key_cost))
+
+	# loop over substrings
+	for sub, size, count, token in generate_substrings(string):
 		counter += 1
+
+		# compute score of substring
+		gain = size * count
+		cost = size + key_cost * (count + 2)
+		score = gain - cost
 
 		if score >= best_score:
 
@@ -376,7 +384,7 @@ def compress_payload(payload, placeholders):
 			print(" * using placeholder: {}".format(repr(key)))
 
 		# find substring for compression
-		sub, score, token = find_best_substring(payload)
+		sub, score, token = find_best_substring(payload, key)
 
 		# stop compression loop if gain is too low
 		if score < 1:
