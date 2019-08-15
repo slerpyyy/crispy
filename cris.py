@@ -9,7 +9,7 @@ import io
 
 # method for parsing command line arguments
 def parse_cmd_args():
-	global in_filename, out_filename, minify, hex_mode, fast_mode, verbose
+	global in_filename, out_filename, minify, latin1, hex_mode, fast_mode, verbose
 
 	# edit help message
 	class CustomArgumentParser(argparse.ArgumentParser):
@@ -20,7 +20,7 @@ def parse_cmd_args():
 			# manually pushing lines around
 			# (ugly and horrible, but I don't have better options)
 			lines.pop(4); lines.pop(6)
-			lines.insert(11, lines.pop(6))
+			lines.insert(12, lines.pop(6))
 			lines.insert(6, lines.pop(5))
 
 			text = "\n".join(lines)
@@ -28,7 +28,7 @@ def parse_cmd_args():
 
 	# init args parser object
 	parser = CustomArgumentParser(
-		usage="%(prog)s [-mfvh] [-o outfile] infile",
+		usage="%(prog)s [-mlxfvh] [-o outfile] infile",
 		description="a small and simple Python script packer",
 		formatter_class=argparse.RawTextHelpFormatter
 	)
@@ -38,6 +38,7 @@ def parse_cmd_args():
 	parser.add_argument("i", metavar="infile", help="specify the input file")
 	parser.add_argument("-o", metavar="outfile", default=in_filename_default, help="specify the output file")
 	parser.add_argument("-m", "--minify", action="store_true", help="minify python script before compressing")
+	parser.add_argument("-l", "--latin1", action="store_true", help="allow extended ascii chars as placeholders")
 	parser.add_argument("-x", "--hex", action="store_true", help="turn rare chars into hex numbers (experimental)")
 	parser.add_argument("-f", "--fast", action="store_true", help="enable fast compression mode for testing purposes")
 	parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity level (can be set multiple times)")
@@ -47,6 +48,7 @@ def parse_cmd_args():
 	in_filename = args["i"]
 	out_filename = args["o"]
 	minify = args["minify"]
+	latin1 = args["latin1"]
 	hex_mode = args["hex"]
 	fast_mode = args["fast"]
 	verbose = args["verbose"]
@@ -149,23 +151,24 @@ def python_minifier(code):
 	global verbose, fast_mode
 
 	try:
-		if verbose > 0: print("\nMinifying python code", end="... ")
+		if verbose > 0: print("\nRunning python code minifier")
 
 		last_size = len(code)
 		while True:
 
 			# minify once
 			code = minify_iteration(code)
-			
+			curr_size = len(code)
+
+			# debug message
+			if verbose > 0: print(" - code size: {} bytes ({} bytes)".format(curr_size, curr_size-last_size))
+
 			# break early in fast mode
 			if fast_mode: break
 
 			# check for gain
-			curr_size = len(code)
 			if curr_size == last_size: break
 			last_size = curr_size
-
-		if verbose > 0: print("Done!")
 
 	# break on token error
 	except tokenize.TokenError:
@@ -182,13 +185,18 @@ def python_minifier(code):
 
 # create string of valid placeholders
 def generate_placeholders(invalid):
+	global latin1
 
 	# create set from string
 	invalid = set(invalid)
 
+	# set number of iterations
+	scope = 0x80
+	if latin1: scope = 0x100
+
 	# generate placeholders
 	keys = ""
-	for i in range(0x100):
+	for i in range(scope):
 		key = chr(i)
 
 		# filter placeholder
@@ -229,12 +237,16 @@ def inverted_histogram(string):
 
 # replace rare characters in payload with their hex representation to free up placeholders
 def rare_to_hex(code, inv_histo, escape):
+	global fast_mode
 
 	# set max number of occurrences for rare chars
 	# (vague unexplained hand-wavy placeholder math)
 	all_counts = [count for _, count in inv_histo]
 	first_half = all_counts[:len(all_counts)//2]
 	threshold = sum(first_half)/max(len(first_half),1)
+
+	# shortcut for fast mode
+	if fast_mode: threshold = min(threshold, 4)
 
 	# get string of chars to replace
 	rare_chars = ""
@@ -426,11 +438,14 @@ def compress_payload(payload, placeholders):
 
 # paste payload into decoder
 def pack_payload(payload, placeholders, escape):
-	global hex_mode
+	global latin1, hex_mode
 
 	# raw decoder code
-	decoder = "# -*- coding: latin-1 -*-\n"
-	decoder += "c={}\nfor i in{}:c=c.split(i);c=c.pop().join(c)\n".format(payload, placeholders)
+	decoder = "c={}\nfor i in{}:a=c.split(i);c=a.pop().join(a)\n".format(payload, placeholders)
+
+	# specify encoding if necessary
+	if latin1:
+		decoder = "# -*- coding: latin-1 -*-\n" + decoder
 
 	# add code for hex decoder
 	if hex_mode:

@@ -9,7 +9,7 @@ crispy is a small and simple Python script packer intended to be used in size-co
 
 ## Usage
 ```
-usage: cris.py [-mfvh] [-o outfile] infile
+usage: cris.py [-mlxfvh] [-o outfile] infile
 
 a small and simple Python script packer
 
@@ -17,6 +17,7 @@ a small and simple Python script packer
   -o outfile     specify the output file
 
   -m, --minify   minify python script before compressing
+  -l, --latin1   allow extended ascii chars as placeholders
   -x, --hex      turn rare chars into hex numbers (experimental)
   -f, --fast     enable fast compression mode for testing purposes
   -v, --verbose  increase verbosity level (can be set multiple times)
