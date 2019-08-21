@@ -347,7 +347,7 @@ def find_best_substring(string, key):
 
 	# output additional cost
 	key_cost = len(repr(key + '"')) - 3
-	if verbose > 1:
+	if verbose > 2:
 		print(" * cost of placeholder: {}".format(key_cost))
 
 	# loop over substrings
@@ -359,10 +359,10 @@ def find_best_substring(string, key):
 		cost = size + key_cost * (count + 2)
 		score = gain - cost
 
-		if score >= best_score:
+		if score > best_score:
 
 			# log best substring
-			if verbose > 1:
+			if verbose > 2:
 				print(" > substring found {} : {}".format(repr(sub), score))
 
 			# update vars
@@ -371,7 +371,7 @@ def find_best_substring(string, key):
 			best_token = token
 
 	# print counter
-	if verbose > 1:
+	if verbose > 2:
 		print(" * {} substrings checked".format(counter))
 		print(" * debug token: {}".format(repr(best_token)))
 
@@ -391,18 +391,23 @@ def compress_payload(payload, placeholders):
 	# log start of compression loop
 	if verbose > 0:
 		print("\nStarting compression loop")
+		if verbose == 2: print()
 
 	for key in placeholders:
 		loop_counter += 1
 
 		# print result every iteration
-		if verbose > 1:
+		if verbose > 2:
 			print("\nIteration {} (max. {})".format(loop_counter, max_iter))
 			print(" * current code: {} bytes".format(len(payload)))
 			print(" * using placeholder: {}".format(repr(key)))
 
 		# find substring for compression
 		sub, score, token = find_best_substring(payload, key)
+
+		# less verbose output
+		if verbose == 2:
+			print("Iter {:03d}/{:03d}: {} {}".format(loop_counter, max_iter, repr(key), score))
 
 		# stop compression loop if gain is too low
 		if score < 1:
@@ -445,7 +450,7 @@ def pack_payload(payload, placeholders, escape):
 
 	# specify encoding if necessary
 	if latin1:
-		decoder = "# -*- coding: latin-1 -*-\n" + decoder
+		decoder = "#coding=l1\n" + decoder
 
 	# add code for hex decoder
 	if hex_mode:
@@ -525,7 +530,7 @@ def main():
 		print("\n{} valid placeholders found: {}".format(len(keys), repr(keys)))
 
 		for string, count in inv_histo:
-			if (verbose < 2) and (count > 16): break
+			if (verbose < 2) and (count > 8): break
 
 			msg = " # {} appears {}"
 			if len(string) > 1: msg = msg.replace("s", "")
