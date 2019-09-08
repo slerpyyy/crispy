@@ -2,6 +2,7 @@
 import argparse
 import tokenize
 import hashlib
+import codecs
 import random
 import io
 
@@ -161,7 +162,7 @@ def python_minifier(code):
 			curr_size = len(code)
 
 			# debug message
-			if verbose > 0: print(" - code size: {} bytes ({} bytes)".format(curr_size, curr_size-last_size))
+			if verbose > 0: print(" - size: {} bytes ({} bytes)".format(last_size, curr_size-last_size))
 
 			# break early in fast mode
 			if fast_mode: break
@@ -466,14 +467,19 @@ def pack_payload(payload, placeholders, escape):
 
 # export encoder
 def write_to_file(filename, content):
-	global verbose
+	global verbose, latin1
 
 	if verbose > 0: print("\nSaving compressed script to {}".format(repr(filename)), end="... ")
 
 	# write data to file
 	try:
-		with open(filename, "w") as file:
-			file.write(content)
+		if latin1:
+			with codecs.open(filename, "w", "ISO-8859-1") as file:
+				file.write(content)
+
+		else:
+			with open(filename, "w") as file:
+				file.write(content)
 
 	# exit on error
 	except:
