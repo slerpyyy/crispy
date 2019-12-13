@@ -33,7 +33,7 @@ def parse_cmd_args():
 		description="a small and simple Python script packer",
 		formatter_class=argparse.RawTextHelpFormatter
 	)
-	
+
 	# set cmd args
 	in_filename_default = ".crispy.output.py"
 	parser.add_argument("i", metavar="infile", help="specify the input file")
@@ -67,7 +67,7 @@ def read_payload_from_file(filename):
 	# read code
 	try:
 		if verbose > 0: print("\nReading code from {}".format(repr(filename)), end="... ")
-		
+
 		with open(filename, "r") as file:
 			output = file.read()
 			size = len(output)
@@ -88,7 +88,7 @@ def read_payload_from_file(filename):
 
 # method for minifying python source code
 def minify_iteration(input_code):
-	
+
 	# setup vars
 	output_code = ""
 	last_token = None
@@ -137,7 +137,7 @@ def minify_iteration(input_code):
 			output_code += text
 
 		# update vars
-		last_erow  = erow 
+		last_erow  = erow
 		last_ecol = ecol
 
 		if (token != tokenize.DEDENT) and (token != tokenize.INDENT):
@@ -313,7 +313,7 @@ def generate_substrings(string):
 			while True:
 				index = string.find(sub, index + 1)
 				if index < 0: break
-				
+
 				# skip all further occurrences of this substring
 				skip[index] = True
 
@@ -521,7 +521,7 @@ def main():
 		if verbose > 0: print("\nConverting rare chars to hex", end="... ")
 
 		payload, replaced_chars = rare_to_hex(payload, inv_histo, hex_esc_char)
-		
+
 		if verbose > 0:
 			print("Done!")
 			print("\nChars replaced: {}".format(repr(replaced_chars)))
@@ -543,7 +543,7 @@ def main():
 
 			amount = "{} times".format(count)
 			if count < 3: amount = (["once", "twice"])[count-1]
-			
+
 			print(msg.format(repr(string), amount))
 
 
